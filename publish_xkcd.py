@@ -1,6 +1,7 @@
 import random
 import os
 import shutil
+from pathlib import Path
 from urllib.parse import urljoin
 import requests
 from dotenv import load_dotenv
@@ -44,9 +45,10 @@ def download_new_xkcd(xkcd_num):
     xkcd_image_url = xkcd_inf['img']
     xkcd_image = requests.get(xkcd_image_url)
     xkcd_image.raise_for_status()
-    with open(f'Files/image{xkcd_num}.jpg', 'ab') as file:
+    path_to_image = Path('Files', f'image{xkcd_num}.jpg')
+    with open(path_to_image, 'ab') as file:
         file.write(xkcd_image.content)
-    return xkcd_text
+    return xkcd_text, path_to_image
 
 
 def get_upload_url(vk_api_access_token, vk_api_version):
@@ -74,15 +76,15 @@ def save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save
     }
     save_response = requests.get(url_for_save, params=params)
     save_response.raise_for_status()
-    save_inf = save_response.json()
-    catch_error(save_inf)
-    image_id = save_inf['response'][0]['id']
-    owner_id = save_inf['response'][0]['owner_id']
+    parsed_save_response = save_response.json()
+    catch_error(parsed_save_response)
+    image_id = parsed_save_response['response'][0]['id']
+    owner_id = parsed_save_response['response'][0]['owner_id']
     return image_id, owner_id
 
 
-def upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, xkcd_num):
-    with open(f'Files/image{xkcd_num}.jpg', 'rb') as file:
+def upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, path_to_image):
+    with open(path_to_image, 'rb') as file:
         upload_files = {
             'photo': file
         }
@@ -127,9 +129,9 @@ def main():
         xkcd_amount = get_amount_xckd()
         xkcd_num = random.randint(1, xkcd_amount)
         os.makedirs('Files', exist_ok=True)
-        xkcd_text = download_new_xkcd(xkcd_num)
+        xkcd_text, path_to_image = download_new_xkcd(xkcd_num)
         upload_url = get_upload_url(vk_api_access_token, vk_api_version)
-        server, photo, hash_for_save = upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, xkcd_num)
+        server, photo, hash_for_save = upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, path_to_image)
         image_id, owner_id = save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save)
         post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, xkcd_text)
     finally:
