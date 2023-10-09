@@ -77,10 +77,8 @@ def upload_photo(vk_api_access_token, vk_api_version, url_for_download, group_id
     return server, photo, hash_for_save
 
 
-def post_photo(vk_api_access_token, vk_api_version, group_id, image_id, owner_id, xkcd_num):
+def post_photo(vk_api_access_token, vk_api_version, group_id, image_id, owner_id, xkcd_text):
     url_for_post = urljoin(BASE_URL_VKAPI, 'wall.post')
-    with open(f'Files/message{xkcd_num}.txt', 'r') as file:
-        xkcd_text = file.read()
     params = {
         'access_token': vk_api_access_token,
         'v': vk_api_version,
@@ -104,12 +102,10 @@ def main():
     os.makedirs('Files', exist_ok=True)
     with open(f'Files/image{xkcd_num}.jpg', 'ab') as file:
         file.write(xkcd_image.content)
-    with open(f'Files/message{xkcd_num}.txt', 'a') as file:
-        file.write(xkcd_text)
     upload_url = get_url_for_upload(vk_api_access_token, vk_api_version)
     server, photo, hash_for_save = upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, xkcd_num)
     image_id, owner_id = save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save)
-    post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, xkcd_num)
+    post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, xkcd_text)
     shutil.rmtree("Files")
 
 
