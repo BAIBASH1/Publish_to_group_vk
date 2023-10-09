@@ -24,13 +24,9 @@ def download_new_xkcd(num_xkcd):
     xkcd_inf = response.json()
     xkcd_text = xkcd_inf['alt']
     xkcd_image_url = xkcd_inf['img']
-    image = requests.get(xkcd_image_url)
-    image.raise_for_status()
-    os.makedirs('Files', exist_ok=True)
-    with open(f'Files/image{num_xkcd}.jpg', 'ab') as file:
-        file.write(image.content)
-    with open(f'Files/message{num_xkcd}.txt', 'a') as file:
-        file.write(xkcd_text)
+    xkcd_image = requests.get(xkcd_image_url)
+    xkcd_image.raise_for_status()
+    return xkcd_image, xkcd_text
 
 
 def get_url_for_upload(vk_api_access_token, vk_api_version):
@@ -45,26 +41,26 @@ def get_url_for_upload(vk_api_access_token, vk_api_version):
     return url_for_download
 
 
-def save_image(vk_api_access_token, vk_api_version, server, photo, response_hash):
+def save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save):
     url_for_save = urljoin(BASE_URL_VKAPI, 'photos.saveWallPhoto')
     params = {
         'access_token': vk_api_access_token,
         'v': vk_api_version,
         'server': server,
         'photo': photo,
-        'hash': response_hash
+        'hash': hash_for_save
     }
-    response_save = requests.get(url_for_save, params=params)
-    response_save.raise_for_status()
-    save_inf = response_save.json()
+    save_response = requests.get(url_for_save, params=params)
+    save_response.raise_for_status()
+    save_inf = save_response.json()
     image_id = save_inf['response'][0]['id']
     owner_id = save_inf['response'][0]['owner_id']
     return image_id, owner_id
 
 
-def upload_and_save_photo(vk_api_access_token, vk_api_version, url_for_download, group_id, num_xkcd):
-    with open(f'Files/image{num_xkcd}.jpg', 'rb') as file:
-        files_upload = {
+def upload_photo(vk_api_access_token, vk_api_version, url_for_download, group_id, xkcd_num):
+    with open(f'Files/image{xkcd_num}.jpg', 'rb') as file:
+        upload_files = {
             'photo': file
         }
         params_for_upload = {
@@ -72,19 +68,18 @@ def upload_and_save_photo(vk_api_access_token, vk_api_version, url_for_download,
             'v': vk_api_version,
             'group_id': group_id
         }
-        response_upload = requests.post(url_for_download, params=params_for_upload, files=files_upload)
-        response_upload.raise_for_status()
-    params_for_save = response_upload.json()
+        upload_response = requests.post(url_for_download, params=params_for_upload, files=upload_files)
+        upload_response.raise_for_status()
+    params_for_save = upload_response.json()
     server = params_for_save['server']
     photo = params_for_save['photo']
-    response_hash = params_for_save['hash']
-    image_id, owner_id = save_image(vk_api_access_token, vk_api_version, server, photo, response_hash)
-    return image_id, owner_id
+    hash_for_save = params_for_save['hash']
+    return server, photo, hash_for_save
 
 
-def post_photo(vk_api_access_token, vk_api_version, group_id, image_id, owner_id, num_xkcd):
+def post_photo(vk_api_access_token, vk_api_version, group_id, image_id, owner_id, xkcd_num):
     url_for_post = urljoin(BASE_URL_VKAPI, 'wall.post')
-    with open(f'Files/message{num_xkcd}.txt', 'r') as file:
+    with open(f'Files/message{xkcd_num}.txt', 'r') as file:
         xkcd_text = file.read()
     params = {
         'access_token': vk_api_access_token,
@@ -94,9 +89,8 @@ def post_photo(vk_api_access_token, vk_api_version, group_id, image_id, owner_id
         'attachments': f'photo{owner_id}_{image_id}',
         'message': xkcd_text
     }
-    response_post = requests.post(url_for_post, params=params)
-    response_post.raise_for_status()
-    shutil.rmtree("Files")
+    post_response = requests.post(url_for_post, params=params)
+    post_response.raise_for_status()
 
 
 def main():
@@ -104,12 +98,20 @@ def main():
     vk_group_id = os.environ['VK_GROUP_ID']
     vk_api_access_token = os.environ['VK_API_ACCESS_TOKEN']
     vk_api_version = '5.150'
-    amount_xckd = get_amount_xckd()
-    num_xkcd = random.randint(1, amount_xckd)
-    download_new_xkcd(num_xkcd)
-    url_for_upload = get_url_for_upload(vk_api_access_token, vk_api_version)
-    image_id, owner_id = upload_and_save_photo(vk_api_access_token, vk_api_version, url_for_upload, vk_group_id, num_xkcd)
-    post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, num_xkcd)
+    xkcd_amount = get_amount_xckd()
+    xkcd_num = random.randint(1, xkcd_amount)
+    xkcd_image, xkcd_text = download_new_xkcd(xkcd_num)
+    os.makedirs('Files', exist_ok=True)
+    with open(f'Files/image{xkcd_num}.jpg', 'ab') as file:
+        file.write(xkcd_image.content)
+    with open(f'Files/message{xkcd_num}.txt', 'a') as file:
+        file.write(xkcd_text)
+    upload_url = get_url_for_upload(vk_api_access_token, vk_api_version)
+    server, photo, hash_for_save = upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, xkcd_num)
+    image_id, owner_id = save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save)
+    post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, xkcd_num)
+    shutil.rmtree("Files")
+
 
 
 if __name__ == '__main__':
