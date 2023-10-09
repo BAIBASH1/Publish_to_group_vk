@@ -69,7 +69,7 @@ def upload_photo(vk_api_access_token, vk_api_version, url_for_download, group_id
             'group_id': group_id
         }
         upload_response = requests.post(url_for_download, params=params_for_upload, files=upload_files)
-        upload_response.raise_for_status()
+    upload_response.raise_for_status()
     params_for_save = upload_response.json()
     server = params_for_save['server']
     photo = params_for_save['photo']
