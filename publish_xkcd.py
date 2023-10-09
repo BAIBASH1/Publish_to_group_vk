@@ -9,6 +9,24 @@ from dotenv import load_dotenv
 BASE_URL_VKAPI = 'https://api.vk.com/method/'
 
 
+class VkApiError(Exception):
+    def __init__(self, error_code, error_message):
+        self.code = error_code
+        self.message = error_message
+
+    def __str__(self):
+        return f'error_code: {self.code}, error_message: {self.message}'
+
+
+def catch_error(response):
+    parsed_response = response.json()
+    if parsed_response.get('error'):
+        error_code = parsed_response['error']['error_code']
+        error_message = parsed_response['error']['error_msg']
+        raise VkApiError(error_code, error_message)
+
+
+
 def get_amount_xckd():
     url_xkcd = 'https://xkcd.com/info.0.json'
     response = requests.get(url_xkcd)
@@ -29,16 +47,17 @@ def download_new_xkcd(num_xkcd):
     return xkcd_image, xkcd_text
 
 
-def get_url_for_upload(vk_api_access_token, vk_api_version):
-    api_url_upload = urljoin(BASE_URL_VKAPI, 'photos.getWallUploadServer')
+def get_upload_url(vk_api_access_token, vk_api_version):
+    url_for_upload_request = urljoin(BASE_URL_VKAPI, 'photos.getWallUploadServer')
     params = {
         'access_token': vk_api_access_token,
         'v': vk_api_version
     }
-    response_upload = requests.get(api_url_upload, params=params)
-    response_upload.raise_for_status()
-    url_for_download = response_upload.json()['response']['upload_url']
-    return url_for_download
+    upload_response = requests.get(url_for_upload_request, params=params)
+    upload_response.raise_for_status()
+    catch_error(upload_response)
+    upload_url = upload_response.json()['response']['upload_url']
+    return upload_url
 
 
 def save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save):
@@ -52,13 +71,14 @@ def save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save
     }
     save_response = requests.get(url_for_save, params=params)
     save_response.raise_for_status()
+    catch_error(save_response)
     save_inf = save_response.json()
     image_id = save_inf['response'][0]['id']
     owner_id = save_inf['response'][0]['owner_id']
     return image_id, owner_id
 
 
-def upload_photo(vk_api_access_token, vk_api_version, url_for_download, group_id, xkcd_num):
+def upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, xkcd_num):
     with open(f'Files/image{xkcd_num}.jpg', 'rb') as file:
         upload_files = {
             'photo': file
@@ -66,10 +86,11 @@ def upload_photo(vk_api_access_token, vk_api_version, url_for_download, group_id
         params_for_upload = {
             'access_token': vk_api_access_token,
             'v': vk_api_version,
-            'group_id': group_id
+            'group_id': vk_group_id
         }
-        upload_response = requests.post(url_for_download, params=params_for_upload, files=upload_files)
+        upload_response = requests.post(upload_url, params=params_for_upload, files=upload_files)
     upload_response.raise_for_status()
+    catch_error(upload_response)
     params_for_save = upload_response.json()
     server = params_for_save['server']
     photo = params_for_save['photo']
@@ -77,18 +98,20 @@ def upload_photo(vk_api_access_token, vk_api_version, url_for_download, group_id
     return server, photo, hash_for_save
 
 
-def post_photo(vk_api_access_token, vk_api_version, group_id, image_id, owner_id, xkcd_text):
+def post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, xkcd_text):
     url_for_post = urljoin(BASE_URL_VKAPI, 'wall.post')
     params = {
         'access_token': vk_api_access_token,
         'v': vk_api_version,
-        'owner_id': f'-{group_id}',
+        'owner_id': f'-{vk_group_id}',
         'from_group': 1,
         'attachments': f'photo{owner_id}_{image_id}',
         'message': xkcd_text
     }
     post_response = requests.post(url_for_post, params=params)
     post_response.raise_for_status()
+    catch_error(post_response)
+
 
 
 def main():
@@ -102,7 +125,7 @@ def main():
     os.makedirs('Files', exist_ok=True)
     with open(f'Files/image{xkcd_num}.jpg', 'ab') as file:
         file.write(xkcd_image.content)
-    upload_url = get_url_for_upload(vk_api_access_token, vk_api_version)
+    upload_url = get_upload_url(vk_api_access_token, vk_api_version)
     server, photo, hash_for_save = upload_photo(vk_api_access_token, vk_api_version, upload_url, vk_group_id, xkcd_num)
     image_id, owner_id = save_image(vk_api_access_token, vk_api_version, server, photo, hash_for_save)
     post_photo(vk_api_access_token, vk_api_version, vk_group_id, image_id, owner_id, xkcd_text)
