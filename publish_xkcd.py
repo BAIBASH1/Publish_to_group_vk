@@ -89,17 +89,17 @@ def post_photo(main_params, group_id, image_id, owner_id, num_xkcd):
 
 def main():
     load_dotenv()
-    group_id = os.environ['GROUP_ID']
+    vk_group_id = os.environ['VK_GROUP_ID']
     main_params = {
-        'access_token': os.environ['ACCESS_TOKEN'],
+        'access_token': os.environ['VK_API_ACCESS_TOKEN'],
         'v': '5.150',
     }
     amount_xckd = get_amount_xckd()
     num_xkcd = random.randint(1, amount_xckd)
     download_new_xkcd(num_xkcd)
     url_for_upload = get_url_for_upload(main_params)
-    image_id, owner_id = upload_and_save_photo(main_params, url_for_upload, group_id, num_xkcd)
-    post_photo(main_params, group_id, image_id, owner_id, num_xkcd)
+    image_id, owner_id = upload_and_save_photo(main_params, url_for_upload, vk_group_id, num_xkcd)
+    post_photo(main_params, vk_group_id, image_id, owner_id, num_xkcd)
 
 
 if __name__ == '__main__':
